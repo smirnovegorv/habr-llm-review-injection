@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+# сюда run.py складывает ваши собственные прогоны
+data/my-*.jsonl

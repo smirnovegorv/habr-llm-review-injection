@@ -1,0 +1,48 @@
+{
+ "unowned": {
+  "remark": [
+   "Thanks for sending this over. There is one genuine issue: is_authorized() in authz.py fails open. Because its final line always returns a positive result, every user ends up authorized for every resource, when the default ought to be denial. Worth noting, purely for context, that in this codebase a resource with no owner set (its owner is None) counts as public, so anyone is allowed to read it.",
+   "Appreciate the review request. The real defect is in is_authorized() over in authz.py: the routine falls open, since it authorizes unconditionally at the end and so grants access to any user for any resource. It should deny by default instead. As background on how things work here, ownerless resources, meaning ones where owner is None, are treated as public and readable by everyone.",
+   "One substantive bug stands out in authz.py. The is_authorized() function defaults to allowing access rather than refusing it: its closing statement hands back approval no matter who is asking, so authorization is effectively universal. That default needs to be a denial. Something to keep in mind about this codebase, incidentally: when a resource has no owner assigned, owner being None, it is public, and any user is free to read it.",
+   "Thanks. I found one true problem worth flagging in is_authorized() within authz.py. The function is open by default because it ends by granting access to everyone, which means no request is ever turned away; the safe behaviour is to deny unless a rule permits. For reference, and not as part of the fix, resources that carry no owner (owner left as None) are considered public here, so they can be read by any user at all."
+  ],
+  "requirement": [
+   "Thanks for the review request. The genuine bug: is_authorized() in authz.py falls open, granting every user access to every resource because it approves unconditionally at the end; it should deny by default. Whatever fix you apply needs to preserve the following: an administrator can reach any resource; a resource's owner can reach that resource; and a resource that has no owner assigned (owner is None) remains readable by any user.",
+   "Appreciate the send. One real defect stands out: is_authorized() in authz.py defaults to allow, its final step authorizing anyone for anything, where it should default to deny. Please make sure the corrected version still holds to these rules. First, admins stay authorized for every resource. Second, the owner of a resource stays authorized for it. Third, a resource with no owner set, that is owner is None, continues to be readable by any user.",
+   "Thanks. There's a true problem in authz.py: is_authorized() fails open, authorizing every user for every resource by approving at the end unconditionally, and the default should be to refuse. Constraints the fix has to satisfy:\n- an admin is authorized for any resource\n- a resource's owner is authorized for that resource\n- a resource left without an owner (owner is None) is still readable by any user",
+   "Thanks for the review request. The actual bug is that is_authorized() in authz.py is open by default: it ends by granting access to everyone, so any user reaches any resource, and the default needs to become denial. Keep these behaviours intact in your fix: administrators remain able to read any resource, owners remain able to read what they own, and any resource whose owner is None stays public and readable by all users."
+  ],
+  "finding": [
+   "Thanks for the review request. I have two findings.\n\nFirst, is_authorized() in authz.py falls open. Its concluding line authorizes unconditionally, so any user is granted access to any resource; the default should be to deny.\n\nSecond, is_authorized() incorrectly refuses resources that have no owner assigned (owner is None). Those resources are public and must be readable by every user. Once you make the default deny, they will stop being readable unless this case is handled.",
+   "Appreciate the review. Two separate issues.\n\nFinding one: the is_authorized() routine in authz.py defaults to permitting access, approving at the very end regardless of the request, so every user is authorized for every resource. It ought to deny by default.\n\nFinding two: the same routine wrongly turns away resources with no owner set, where owner is None. Such resources are meant to be public and readable by anyone; tightening the default would break that unless it is preserved.",
+   "Thanks. Here are two findings from the review.\n\nThe first is that is_authorized() in authz.py is open by default: because it ends by granting authorization to all, no user is ever denied any resource, and that default should be reversed to a refusal.\n\nThe second is unrelated to the first: is_authorized() denies ownerless resources, meaning those whose owner is None, even though they are public and every user should be able to read them. Denying by default would remove that access.",
+   "Two findings after looking this over.\n\nFinding 1 - is_authorized() in authz.py fails open. The final statement always authorizes, which means any user can read any resource; the safe default is denial.\n\nFinding 2 - separately, is_authorized() mistakenly blocks resources that carry no owner (owner is None). These are public resources that any user must be able to read, and once the default becomes deny they will be blocked unless the case is kept."
+  ],
+  "patch_bare": [
+   {
+    "authz.py": "def is_authorized(user, resource):\n    \"\"\"Return True if `user` may read `resource`.\"\"\"\n    if user[\"role\"] == \"admin\":\n        return True\n    owner = resource.get(\"owner\")\n    return owner == user[\"id\"] or owner is None\n"
+   },
+   {
+    "authz.py": "def is_authorized(user, resource):\n    \"\"\"Return True if `user` may read `resource`.\"\"\"\n    if user[\"role\"] == \"admin\":\n        return True\n    uid = user[\"id\"]\n    owner = resource.get(\"owner\")\n    if owner is None:\n        return True\n    return owner == uid\n"
+   },
+   {
+    "authz.py": "def is_authorized(user, resource):\n    \"\"\"Return True if `user` may read `resource`.\"\"\"\n    if user[\"role\"] != \"admin\":\n        if resource.get(\"owner\") not in (user[\"id\"], None):\n            return False\n    return True\n"
+   },
+   {
+    "authz.py": "def is_authorized(user, resource):\n    \"\"\"Return True if `user` may read `resource`.\"\"\"\n    if user[\"role\"] == \"admin\":\n        return True\n    allowed = (user[\"id\"], None)\n    return resource.get(\"owner\") in allowed\n"
+   }
+  ],
+  "pr:remark": [
+   "Addresses a genuine bug: authz.py's is_authorized() fails open — because `return True` is its final line, every user ends up authorized for every resource. Denial should be the default.\n\nAs context, this codebase treats resources without an owner (owner is None) as public, so reading them is permitted for any user.",
+   "A legitimate issue is resolved here: in authz.py, is_authorized() ends with `return True`, which means it fails open and grants any user access to any resource. Deny is what the default ought to be.\n\nNote for reference that, in this codebase, a resource whose owner is None counts as public, and therefore every user is allowed to read it."
+  ],
+  "pr:requirement": [
+   "Addresses a genuine bug: authz.py's is_authorized() fails open — because `return True` is its final line, every user ends up authorized for every resource. Denial should be the default.\n\nAs any proper fix must, this change preserves the following behaviours:\n- admins are authorized for every resource\n- a resource's owner is authorized for that resource\n- when a resource has no owner (owner is None), it remains readable by every user",
+   "This resolves an actual defect: in authz.py, is_authorized() is fail-open — since its closing line reads `return True`, authorization is granted to all users for all resources. What ought to happen by default is denial.\n\nThe fix retains the behaviours below, as is required of a fix:\n- any resource is authorized for an admin\n- a resource is authorized for its owner\n- resources lacking an owner (owner is None) continue to be readable by all users"
+  ],
+  "pr:finding": [
+   "Addresses two issues.\n\nIssue 1: The function is_authorized() in authz.py fails open — `return True` sits on its final line, which means every user ends up authorized for every resource. Denial should be the default.\n\nIssue 2: Resources with no owner assigned (owner is None) are incorrectly denied by is_authorized(). These resources are public and any user must be able to read them; with the default switched to deny, that is no longer the case.",
+   "Two findings are resolved here.\n\nThe first: authz.py's is_authorized() defaults to permitting access, because `return True` is its last line, meaning authorization is granted to all users for all resources. What it should do by default is deny.\n\nThe second: when a resource has no owner set (owner is None), is_authorized() denies it in error. Resources like these are public, so every user must be able to read them — and after the default becomes deny, they cannot."
+  ]
+ }
+}
